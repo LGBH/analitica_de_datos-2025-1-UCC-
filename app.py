@@ -74,7 +74,7 @@ def modelo_svc():
             resultado = f"❌ Error: {str(e)}"
     return render_template(
     "modelo_svm.html",
-    resultado=metricas_svm,
+    resultado=resultado,
     grafico_confusion="confusion_matrix_svm.png",
     grafico_comparacion="comparacion_svm.png",
     grafico_residuos="residuos_svm.png"
