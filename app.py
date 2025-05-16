@@ -53,33 +53,105 @@ def modelo_ann():
     return render_template('modelo_ann.html', resultado=resultado)
 
 # ============================
-# MODELO SVC - 30 columnas
+# MODELO SVM - 30 columnas
 # ============================
-@app.route('/modelo_svc', methods=['GET', 'POST'])
+@app.route('/modelo_svm', methods=['GET', 'POST'], endpoint='modelo_svm')
 def modelo_svc():
-    resultado = None
+    resultado = []
+    grafico_confusion = None
+    grafico_comparacion = None
+    grafico_residuos = None
+
     if request.method == 'POST':
-        try:
-            archivo = request.files['archivo']
-            df = pd.read_excel(archivo)
+        archivo = request.files['archivo']
+        if archivo and archivo.filename.endswith('.xlsx'):
+            try:
+                df = pd.read_excel(archivo)
+                if 'C31' not in df.columns:
+                    return "❌ El archivo debe contener la columna objetivo 'C31'."
 
-            if df.shape[1] != 30:
-                raise ValueError("El archivo debe tener exactamente 30 columnas.")
+                X = df.drop(columns=['C31'])
+                y = df['C31']
 
-            modelo = joblib.load("archivos_.pkl/modelo_svc.pkl")
-            predicciones = modelo.predict(df)
+                from sklearn.model_selection import train_test_split
+                from sklearn.svm import SVC
+                from sklearn.metrics import classification_report, mean_squared_error, r2_score
 
-            resultado = [("FGR" if p == 1 else "Normal") for p in predicciones]
-        except Exception as e:
-            resultado = f"❌ Error: {str(e)}"
-    return render_template(
-    "modelo_svm.html",
-    resultado=resultado,
-    grafico_confusion="confusion_matrix_svm.png",
-    grafico_comparacion="comparacion_svm.png",
-    grafico_residuos="residuos_svm.png"
-)
+                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
 
+                model = SVC(kernel='rbf', C=1.0, gamma='scale')
+                model.fit(X_train, y_train)
+                y_pred = model.predict(X_test)
+
+                accuracy = accuracy_score(y_test, y_pred)
+                cm = confusion_matrix(y_test, y_pred)
+                residuos = y_test - y_pred
+                mse = mean_squared_error(y_test, y_pred)
+                r2 = r2_score(y_test, y_pred)
+                reporte = classification_report(y_test, y_pred, output_dict=False)
+
+                import matplotlib.pyplot as plt
+                import seaborn as sns
+
+                # Guardar matriz de confusión
+                plt.figure(figsize=(6, 4))
+                sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                            xticklabels=["Normal (0)", "FGR (1)"], yticklabels=["Normal (0)", "FGR (1)"])
+                plt.xlabel('Predicción')
+                plt.ylabel('Valor real')
+                plt.title('Matriz de Confusión - SVM')
+                plt.tight_layout()
+                filename_conf = f"confusion_matrix_svm.png"
+                plt.savefig(f"static/{filename_conf}")
+                plt.close()
+                grafico_confusion = filename_conf
+
+                # Comparación real vs predicho
+                plt.figure(figsize=(10, 5))
+                plt.plot(y_test.values, label='Real', marker='o')
+                plt.plot(y_pred, label='Predicho', marker='x')
+                plt.title("Comparación Real vs Predicho - SVM")
+                plt.xlabel("Índice de muestra")
+                plt.ylabel("Clase")
+                plt.legend()
+                plt.grid(True)
+                plt.tight_layout()
+                filename_comp = f"comparacion_svm.png"
+                plt.savefig(f"static/{filename_comp}")
+                plt.close()
+                grafico_comparacion = filename_comp
+
+                # Residual plot
+                plt.figure(figsize=(8, 4))
+                plt.plot(residuos.values, marker='o', linestyle='--')
+                plt.axhline(0, color='red', linestyle='--')
+                plt.title("Gráfico de Residuos - SVM")
+                plt.xlabel("Índice de muestra")
+                plt.ylabel("Error")
+                plt.grid(True)
+                plt.tight_layout()
+                filename_res = f"residuos_svm.png"
+                plt.savefig(f"static/{filename_res}")
+                plt.close()
+                grafico_residuos = filename_res
+
+                resultado = [
+                    f"Exactitud: {accuracy:.2f}",
+                    f"Error Cuadrático Medio (MSE): {mse:.2f}",
+                    f"Coeficiente de Determinación (R²): {r2:.2f}",
+                    "Reporte de Clasificación:",
+                    reporte
+                ]
+
+            except Exception as e:
+                resultado = [f"❌ Error: {str(e)}"]
+        else:
+            resultado = ["❌ Por favor, sube un archivo Excel (.xlsx) válido."]
+    return render_template("modelo_svm.html",
+                           resultado=resultado,
+                           grafico_confusion=grafico_confusion,
+                           grafico_comparacion=grafico_comparacion,
+                           grafico_residuos=grafico_residuos)
 
 # ============================
 # MODELO FCM - Matriz + Exactitud + Gráfico
